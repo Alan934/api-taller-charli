@@ -1,7 +1,14 @@
-import { IsString, IsEmail, IsOptional, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsEnum,
+  IsNotEmpty,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Role } from '../../enum/role.enum';
 
-export class CreateUserDto {
+export class CreateAdminUserDto {
   @ApiProperty({
     description: 'Nombre del usuario',
     example: 'Juan',
@@ -34,7 +41,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Dirección de correo electrónico',
-    example: 'juan.perez@email.com',
+    example: 'admin@taller.com',
     format: 'email',
   })
   @IsEmail({}, { message: 'Debe ser un email válido' })
@@ -49,4 +56,13 @@ export class CreateUserDto {
   @IsOptional()
   @IsString({ message: 'El teléfono debe ser un texto' })
   phone?: string;
+
+  @ApiProperty({
+    description: 'Rol del usuario en el sistema',
+    enum: Role,
+    example: Role.ADMIN,
+    enumName: 'Role',
+  })
+  @IsEnum(Role, { message: 'Rol inválido. Usa ADMIN o CLIENT' })
+  role!: Role;
 }

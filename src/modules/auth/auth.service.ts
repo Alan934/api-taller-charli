@@ -6,7 +6,6 @@ import {
 import { LoginDto } from '../../dto/auth-dto/login.dto';
 import { SupabaseAuthService } from '../supabase-auth/supabase-auth.service';
 import { UserService } from '../user/user.service';
-import { Role } from '../../enum/role.enum';
 import { User } from '../../interfaces/user.interface';
 
 @Injectable()
@@ -58,10 +57,9 @@ export class AuthService {
       lastName: string;
       dni: string;
       phone?: string;
-      role: Role;
     },
   ): Promise<User> {
-    const { email, password, firstName, lastName, dni, phone, role } = dto;
+    const { email, password, firstName, lastName, dni, phone } = dto;
 
     try {
       // Registrar en Supabase
@@ -77,7 +75,6 @@ export class AuthService {
         dni,
         email,
         phone,
-        role: role || Role.CLIENT,
       });
 
       return user;

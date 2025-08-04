@@ -7,12 +7,25 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from '../../dto/auth-dto/login.dto';
-import { CreateUserDto } from '../../dto/user-dto/create-user.dto';
-import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { RegisterDto } from '../../dto/auth-dto/register.dto';
+import { UserResponseDto, ApiResponseDto } from '../../dto/user-dto/user-response.dto';
 
-@ApiTags('auth')
+// Definir DTO de respuesta para login
+export class LoginResponseDto {
+  user!: UserResponseDto;
+  token!: string;
+  refreshToken!: string;
+}
+
+@ApiTags('Autenticación')
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -25,10 +38,27 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiBody({ type: LoginDto })
-  @ApiResponse({ status: 200, description: 'Inicio de sesión exitoso' })
-  @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
-  @ApiResponse({ status: 400, description: 'Solicitud incorrecta' })
+  @ApiOperation({
+    summary: 'Iniciar sesión',
+    description: 'Autentica un usuario con email y contraseña, devuelve el usuario y tokens de acceso.',
+  })
+  @ApiBody({
+    type: LoginDto,
+    description: 'Credenciales de usuario',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Inicio de sesión exitoso',
+    type: ApiResponseDto<LoginResponseDto>,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Credenciales inválidas',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Datos de entrada inválidos',
+  })
   async login(@Body() loginDto: LoginDto) {
     try {
       const result = await this.authService.login(loginDto);
@@ -55,12 +85,30 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiBody({ type: CreateUserDto })
-  @ApiResponse({ status: 201, description: 'Usuario registrado exitosamente' })
-  @ApiResponse({ status: 400, description: 'Datos inválidos o ya registrados' })
-  async register(@Body() dto: CreateUserDto & { password: string }) {
+  @ApiOperation({
+    summary: 'Registrar nuevo usuario',
+    description: 'Crea una nueva cuenta de usuario con rol CLIENT. Registra en Supabase Auth y crea el perfil en la base de datos local.',
+  })
+  @ApiBody({
+    type: RegisterDto,
+    description: 'Datos del nuevo usuario',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Usuario registrado exitosamente',
+    type: ApiResponseDto<UserResponseDto>,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Datos inválidos o email/DNI ya registrados',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'El email o DNI ya está registrado',
+  })
+  async register(@Body() registerDto: RegisterDto) {
     try {
-      const user = await this.authService.register(dto);
+      const user = await this.authService.register(registerDto);
       return {
         success: true,
         message: 'Usuario registrado exitosamente',
@@ -69,12 +117,12 @@ export class AuthController {
     } catch (error) {
       if (this.isError(error)) {
         this.logger.error(
-          `Registration failed for email ${dto.email}:`,
+          `Registration failed for email ${registerDto.email}:`,
           error.stack,
         );
       } else {
         this.logger.error(
-          `Registration failed for email ${dto.email}:`,
+          `Registration failed for email ${registerDto.email}:`,
           String(error),
         );
       }
