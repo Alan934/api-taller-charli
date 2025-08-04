@@ -2,44 +2,46 @@
 
   "version": 2,
 
-      "builds": [
+  "builds": [
 
-        {
+    {
 
-            "src": "api/index.ts",
+      "src": "src/main.ts",
 
-            "use": "@vercel/node"
-
-        }
-
-    ],
-
-  "functions": {
-
-    "api/index.ts": {
-
-      "includeFiles": "prisma/schema.prisma"
+      "use": "@vercel/node"
 
     }
 
-  },
+  ],
+
+  "installCommand": "npm i --save",
 
   "routes": [
 
-      {
+    {
 
-          "src": "/(.*)",
+      "src": "/api/(.*)",
 
-          "dest": "api/index.ts"
+      "methods": [
 
-      }
+        "GET",
 
-  ],
+        "POST",
 
-  "env": {
+        "PUT",
 
-    "NODE_ENV": "production"
+        "DELETE",
 
-  }
+        "PATCH",
+
+        "OPTIONS"
+
+      ],
+
+      "dest": "src/main.ts"
+
+    }
+
+  ]
 
 }

@@ -1,0 +1,53 @@
+import { INestApplication } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { envConfig } from '../../config/envs';
+import * as basicAuth from 'express-basic-auth';
+
+export const setupSwagger = (app: INestApplication) => {
+  if (envConfig.NODE_ENV !== 'development') {
+    // Añade una contraseña para acceder a la documentación cuando no es en development
+    app.use(
+      [envConfig.SWAGGER_PATH, `${envConfig.SWAGGER_PATH}-json`],
+      basicAuth.default({
+        challenge: true,
+        users: {
+          admin: envConfig.SWAGGER_PASSWORD
+        }
+      })
+    );
+  }
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('API Taller Charli')
+    .setDescription('API REST para el sistema de gestión del Taller Charli. Incluye autenticación, gestión de usuarios y operaciones CRUD completas.')
+    .setVersion('1.0')
+    .addTag('Usuarios', 'Operaciones CRUD para gestión de usuarios')
+    .addTag('Autenticación', 'Endpoints para login y registro de usuarios')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'bearerAuth',
+    )
+    .build();
+
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup(envConfig.SWAGGER_PATH, app, swaggerDocument, {
+    customSiteTitle: 'API Taller Charli - Documentación',
+    customfavIcon: 'https://avatars.githubusercontent.com/u/185267919?s=400&u=7d74f9c123b27391d3f11da2815de1e9a1031ca9&v=4',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.min.js',
+    ],
+    customCssUrl: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.min.css',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.css',
+    ],
+  });
+};
