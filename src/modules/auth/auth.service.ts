@@ -51,6 +51,76 @@ export class AuthService {
     }
   }
 
+  async refreshToken(refreshToken: string): Promise<{
+    token: string;
+    refreshToken: string;
+    user: User;
+  }> {
+    try {
+      const sessionData = await this.supabaseAuth.refreshToken(refreshToken);
+
+      if (!sessionData || !sessionData.session) {
+        throw new UnauthorizedException('Refresh token inválido');
+      }
+
+      // Obtener usuario actualizado
+      const supabaseUser = await this.supabaseAuth.verifyToken(
+        sessionData.session.access_token,
+      );
+
+      if (!supabaseUser) {
+        throw new UnauthorizedException('Token inválido después del refresh');
+      }
+
+      const user = await this.userService.findByEmail(supabaseUser.email!);
+      if (!user) {
+        throw new UnauthorizedException('Usuario no encontrado');
+      }
+
+      return {
+        token: sessionData.session.access_token,
+        refreshToken: sessionData.session.refresh_token,
+        user,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException('Error al refrescar token');
+    }
+  }
+
+  async logout(accessToken: string): Promise<{ success: boolean }> {
+    try {
+      await this.supabaseAuth.signOut(accessToken);
+      return { success: true };
+    } catch {
+      throw new BadRequestException('Error al cerrar sesión');
+    }
+  }
+
+  async getCurrentUser(accessToken: string): Promise<User> {
+    try {
+      const supabaseUser = await this.supabaseAuth.getCurrentUser(accessToken);
+
+      if (!supabaseUser) {
+        throw new UnauthorizedException('Token inválido');
+      }
+
+      const user = await this.userService.findByEmail(supabaseUser.email!);
+      if (!user) {
+        throw new UnauthorizedException('Usuario no encontrado');
+      }
+
+      return user;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException('Error al obtener usuario actual');
+    }
+  }
+
   async register(
     dto: LoginDto & {
       firstName: string;

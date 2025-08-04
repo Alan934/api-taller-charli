@@ -12,6 +12,8 @@ import {
   ParseIntPipe,
   Patch,
   HttpStatus,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,6 +22,7 @@ import {
   ApiParam,
   ApiQuery,
   ApiBody,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from '../../dto/user-dto/create-user.dto';
@@ -28,20 +31,30 @@ import { UpdateUserDto } from '../../dto/user-dto/update-user.dto';
 import { FilterUsersDto } from '../../dto/user-dto/filter-users.dto';
 import {
   UserResponseDto,
-  PaginatedUsersResponseDto,
   ApiResponseDto,
 } from '../../dto/user-dto/user-response.dto';
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
+import { RolesGuard } from '../../guards/roles.guard';
+import { Roles } from '../../decorators/roles.decorator';
+import { GetUser } from '../../decorators/get-user.decorator';
+import { Role } from '../../enum/role.enum';
+import { ApiPaginationResponse } from '../../common/swagger/api-pagination-response';
+import type { AuthenticatedUser } from '../../interfaces/auth.interface';
 
 @ApiTags('Usuarios')
 @Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth('bearerAuth')
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
+  @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Crear usuario cliente',
-    description: 'Crea un nuevo usuario con rol de CLIENT. Este endpoint es para registro público.',
+    summary: 'Crear usuario cliente (Solo Admins)',
+    description:
+      'Permite a un administrador crear un nuevo usuario con rol de CLIENT.',
   })
   @ApiBody({
     type: CreateUserDto,
@@ -60,19 +73,27 @@ export class UserController {
     status: HttpStatus.CONFLICT,
     description: 'El email o DNI ya está registrado',
   })
-  async create(@Body() createUserDto: CreateUserDto) {
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
+  })
+  async create(
+    @Body() createUserDto: CreateUserDto,
+  ): Promise<ApiResponseDto<UserResponseDto>> {
     const user = await this.userService.create(createUserDto);
     return {
       success: true,
       message: 'Usuario creado exitosamente',
-      data: user,
+      data: user as UserResponseDto,
     };
   }
 
   @Post('admin')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Crear usuario por administrador',
-    description: 'Permite a un administrador crear usuarios con cualquier rol (ADMIN o CLIENT).',
+    description:
+      'Permite a un administrador crear usuarios con cualquier rol (ADMIN o CLIENT).',
   })
   @ApiBody({
     type: CreateAdminUserDto,
@@ -91,19 +112,27 @@ export class UserController {
     status: HttpStatus.CONFLICT,
     description: 'El email o DNI ya está registrado',
   })
-  async createByAdmin(@Body() createAdminUserDto: CreateAdminUserDto) {
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
+  })
+  async createByAdmin(
+    @Body() createAdminUserDto: CreateAdminUserDto,
+  ): Promise<ApiResponseDto<UserResponseDto>> {
     const user = await this.userService.createByAdmin(createAdminUserDto);
     return {
       success: true,
       message: 'Usuario creado exitosamente por administrador',
-      data: user,
+      data: user as UserResponseDto,
     };
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Obtener usuarios activos',
-    description: 'Obtiene una lista paginada de usuarios activos con filtros opcionales.',
+    summary: 'Obtener usuarios activos (Solo Admins)',
+    description:
+      'Obtiene una lista paginada de usuarios activos con filtros opcionales. Solo accesible por administradores.',
   })
   @ApiQuery({
     name: 'firstName',
@@ -156,14 +185,10 @@ export class UserController {
     description: 'Elementos por página',
     example: 10,
   })
+  @ApiPaginationResponse(UserResponseDto)
   @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de usuarios obtenida exitosamente',
-    type: ApiResponseDto<PaginatedUsersResponseDto>,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Parámetros de consulta inválidos',
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
   })
   async findAll(@Query() filterDto: FilterUsersDto) {
     const result = await this.userService.findAll(filterDto);
@@ -175,9 +200,11 @@ export class UserController {
   }
 
   @Get('deleted')
+  @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Obtener usuarios eliminados',
-    description: 'Obtiene una lista paginada de usuarios eliminados lógicamente.',
+    summary: 'Obtener usuarios eliminados (Solo Admins)',
+    description:
+      'Obtiene una lista paginada de usuarios eliminados lógicamente. Solo accesible por administradores.',
   })
   @ApiQuery({
     name: 'firstName',
@@ -230,14 +257,10 @@ export class UserController {
     description: 'Elementos por página',
     example: 10,
   })
+  @ApiPaginationResponse(UserResponseDto)
   @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de usuarios eliminados obtenida exitosamente',
-    type: ApiResponseDto<PaginatedUsersResponseDto>,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Parámetros de consulta inválidos',
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
   })
   async findDeleted(@Query() filterDto: FilterUsersDto) {
     const result = await this.userService.findDeleted(filterDto);
@@ -248,10 +271,33 @@ export class UserController {
     };
   }
 
-  @Get(':id')
+  @Get('profile')
   @ApiOperation({
-    summary: 'Obtener usuario por ID',
-    description: 'Obtiene un usuario específico por su ID (solo usuarios activos).',
+    summary: 'Obtener mi perfil',
+    description:
+      'Obtiene el perfil del usuario autenticado. Accesible por cualquier usuario autenticado.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Perfil obtenido exitosamente',
+    type: ApiResponseDto<UserResponseDto>,
+  })
+  getMyProfile(
+    @GetUser() user: AuthenticatedUser,
+  ): ApiResponseDto<UserResponseDto> {
+    return {
+      success: true,
+      message: 'Perfil obtenido exitosamente',
+      data: user.localUser as UserResponseDto,
+    };
+  }
+
+  @Get(':id')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener usuario por ID (Solo Admins)',
+    description:
+      'Obtiene un usuario específico por su ID. Solo accesible por administradores.',
   })
   @ApiParam({
     name: 'id',
@@ -269,8 +315,8 @@ export class UserController {
     description: 'Usuario no encontrado',
   })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'ID de usuario inválido',
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
   })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const user = await this.userService.findOne(id);
@@ -284,7 +330,8 @@ export class UserController {
   @Put(':id')
   @ApiOperation({
     summary: 'Actualizar usuario',
-    description: 'Actualiza los datos de un usuario existente.',
+    description:
+      'Actualiza los datos de un usuario. Los administradores pueden actualizar cualquier usuario, los clientes solo su propio perfil.',
   })
   @ApiParam({
     name: 'id',
@@ -306,29 +353,31 @@ export class UserController {
     description: 'Usuario no encontrado',
   })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Datos de entrada inválidos',
-  })
-  @ApiResponse({
-    status: HttpStatus.CONFLICT,
-    description: 'El email o DNI ya está en uso por otro usuario',
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para actualizar este usuario',
   })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
-  ) {
+    @GetUser() currentUser: AuthenticatedUser,
+  ): Promise<ApiResponseDto<UserResponseDto>> {
+    // Verificar permisos: Admin puede actualizar cualquier usuario, Cliente solo su propio perfil
+    this.validateUserPermissions(currentUser, id);
+
     const user = await this.userService.update(id, updateUserDto);
     return {
       success: true,
       message: 'Usuario actualizado exitosamente',
-      data: user,
+      data: user as UserResponseDto,
     };
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Eliminar usuario (soft delete)',
-    description: 'Realiza una eliminación lógica del usuario. El usuario se marca como eliminado pero no se borra de la base de datos.',
+    summary: 'Eliminar usuario (Solo Admins)',
+    description:
+      'Realiza una eliminación lógica del usuario. Solo accesible por administradores.',
   })
   @ApiParam({
     name: 'id',
@@ -346,8 +395,8 @@ export class UserController {
     description: 'Usuario no encontrado',
   })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'ID de usuario inválido',
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
   })
   async softDelete(@Param('id', ParseIntPipe) id: number) {
     const user = await this.userService.softDelete(id);
@@ -359,9 +408,11 @@ export class UserController {
   }
 
   @Patch(':id/recover')
+  @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Recuperar usuario eliminado',
-    description: 'Restaura un usuario que fue eliminado lógicamente.',
+    summary: 'Recuperar usuario eliminado (Solo Admins)',
+    description:
+      'Restaura un usuario que fue eliminado lógicamente. Solo accesible por administradores.',
   })
   @ApiParam({
     name: 'id',
@@ -379,8 +430,8 @@ export class UserController {
     description: 'Usuario no encontrado',
   })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'El usuario no está eliminado o ID inválido',
+    status: HttpStatus.FORBIDDEN,
+    description: 'No tienes permisos para realizar esta acción',
   })
   async recover(@Param('id', ParseIntPipe) id: number) {
     const user = await this.userService.recover(id);
@@ -389,5 +440,20 @@ export class UserController {
       message: 'Usuario recuperado exitosamente',
       data: user,
     };
+  }
+
+  /**
+   * Valida si el usuario tiene permisos para realizar la acción sobre otro usuario
+   * @private
+   */
+  private validateUserPermissions(
+    currentUser: AuthenticatedUser,
+    targetUserId: number,
+  ): void {
+    if (currentUser.role !== Role.ADMIN && currentUser.id !== targetUserId) {
+      throw new ForbiddenException(
+        'No tienes permisos para realizar esta acción sobre este usuario',
+      );
+    }
   }
 }

@@ -46,4 +46,44 @@ export class SupabaseAuthService {
     if (error) return null;
     return data.user;
   }
+
+  async refreshToken(refreshToken: string) {
+    const { data, error } = await this.supabase.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error) throw new Error(error.message);
+
+    return data;
+  }
+
+  async signOut(accessToken: string) {
+    // Configurar el cliente con el token del usuario
+    const { error } = await this.supabase.auth.signOut();
+    
+    if (error) throw new Error(error.message);
+    
+    return { success: true };
+  }
+
+  async getCurrentUser(accessToken: string) {
+    // Crear una instancia temporal con el token del usuario
+    const supabaseWithAuth = createClient(
+      this.configService.get<string>('SUPABASE_URL')!,
+      this.configService.get<string>('SUPABASE_ANON_KEY')!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      }
+    );
+
+    const { data, error } = await supabaseWithAuth.auth.getUser();
+    
+    if (error) return null;
+    
+    return data.user;
+  }
 }
