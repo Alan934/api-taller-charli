@@ -14,7 +14,9 @@
 
     ],
 
-  "installCommand": "npm i --save",
+  "buildCommand": "npm run build",
+
+  "installCommand": "npm install && npx prisma generate",
 
   "routes": [
 
@@ -28,6 +30,12 @@
 
       }
 
-  ]
+  ],
+
+  "env": {
+
+    "NODE_ENV": "production"
+
+  }
 
 }
